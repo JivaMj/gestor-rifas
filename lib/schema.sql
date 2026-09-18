@@ -38,6 +38,12 @@ CREATE TABLE IF NOT EXISTS tickets (
   raffle_id UUID NOT NULL REFERENCES raffles(id) ON DELETE CASCADE,
   number INTEGER NOT NULL,
   status TEXT NOT NULL DEFAULT 'sold' CHECK (status IN ('reserved', 'sold')),
+  participant_name TEXT,
+  participant_phone TEXT,
+  amount_paid NUMERIC(10, 2) DEFAULT 0,
+  fully_paid BOOLEAN DEFAULT false,
+  delivery_address TEXT,
+  notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(raffle_id, number)

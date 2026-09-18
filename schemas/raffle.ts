@@ -82,6 +82,12 @@ export const setTicketStatusSchema = z.object({
   raffle_id: z.string().uuid(),
   number: z.number().int().min(0),
   status: z.enum(["reserved", "sold"]),
+  participant_name: z.string().max(200).optional(),
+  participant_phone: z.string().max(50).optional(),
+  amount_paid: z.number().min(0).optional(),
+  fully_paid: z.boolean().optional(),
+  delivery_address: z.string().max(500).optional(),
+  notes: z.string().max(1000).optional(),
 });
 
 export const releaseTicketSchema = z.object({

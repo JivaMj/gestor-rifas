@@ -844,7 +844,51 @@ Las operaciones críticas de base de datos deben tener pruebas o verificaciones 
 
 ---
 
-# 29. Deployment
+# 29. Migraciones de base de datos
+
+Toda modificación al esquema de la base de datos debe documentarse en un archivo de migración dentro de la carpeta `migrations/`.
+
+Cada archivo de migración debe contener:
+
+1. nombre descriptivo del cambio;
+2. fecha de creación;
+3. sentencia SQL completa;
+4. descripción breve de para qué sirve el cambio.
+
+Formato del nombre del archivo:
+
+```text
+YYYY-MM-DD_descripcion_corta.sql
+```
+
+Ejemplo:
+
+```text
+2026-09-18_agregar_campos_participante_tickets.sql
+```
+
+Contenido del archivo:
+
+```sql
+-- =====================================================
+-- MIGRATION: 2026-09-18 - Agregar campos de participante a tickets
+-- =====================================================
+-- Descripcion: Agrega columnas para guardar nombre, telefono,
+-- monto pagado, estado de pago y direccion de entrega
+-- =====================================================
+
+ALTER TABLE tickets ADD COLUMN participant_name TEXT;
+ALTER TABLE tickets ADD COLUMN participant_phone TEXT;
+-- ... etc
+```
+
+No modificar `lib/schema.sql` directamente cuando exista una migración.
+
+El archivo `lib/schema.sql` representa el esquema completo actualizado (se actualiza después de aplicar la migración).
+
+---
+
+# 30. Deployment
 
 Objetivo inicial:
 
@@ -882,7 +926,7 @@ npm run build
 
 ---
 
-# 30. Principio fundamental
+# 31. Principio fundamental
 
 La aplicación debe sentirse como una herramienta pequeña y rápida, no como un sistema empresarial.
 
@@ -903,7 +947,7 @@ La solución preferida es siempre la más sencilla que mantenga la seguridad y c
 
 ---
 
-# 31. Evolución futura
+# 32. Evolución futura
 
 No implementar todavía, pero mantener una arquitectura que permita posteriormente:
 

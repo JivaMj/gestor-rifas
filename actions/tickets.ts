@@ -3,12 +3,28 @@
 import { revalidatePath } from "next/cache";
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { setTicketStatusSchema, releaseTicketSchema } from "@/schemas/raffle";
+
+export interface TicketData {
+  participant_name?: string;
+  participant_phone?: string;
+  amount_paid?: number;
+  fully_paid?: boolean;
+  delivery_address?: string;
+  notes?: string;
+}
+
 export async function setTicketStatus(
   raffleId: string,
   number: number,
-  status: "reserved" | "sold"
+  status: "reserved" | "sold",
+  ticketData?: TicketData
 ): Promise<{ success: boolean; error?: string }> {
-  const parsed = setTicketStatusSchema.safeParse({ raffle_id: raffleId, number, status });
+  const parsed = setTicketStatusSchema.safeParse({
+    raffle_id: raffleId,
+    number,
+    status,
+    ...ticketData,
+  });
   if (!parsed.success) {
     return { success: false, error: "Datos inválidos" };
   }
@@ -30,13 +46,31 @@ export async function setTicketStatus(
     return { success: false, error: "El número está fuera del rango" };
   }
 
+  const upsertData: Record<string, unknown> = {
+    raffle_id: raffleId,
+    number,
+    status,
+  };
+
+  if (ticketData) {
+    if (ticketData.participant_name !== undefined)
+      upsertData.participant_name = ticketData.participant_name || null;
+    if (ticketData.participant_phone !== undefined)
+      upsertData.participant_phone = ticketData.participant_phone || null;
+    if (ticketData.amount_paid !== undefined)
+      upsertData.amount_paid = ticketData.amount_paid;
+    if (ticketData.fully_paid !== undefined)
+      upsertData.fully_paid = ticketData.fully_paid;
+    if (ticketData.delivery_address !== undefined)
+      upsertData.delivery_address = ticketData.delivery_address || null;
+    if (ticketData.notes !== undefined)
+      upsertData.notes = ticketData.notes || null;
+  }
+
   // Upsert: if ticket exists, update status; if not, insert
   const { error } = await supabase
     .from("tickets")
-    .upsert(
-      { raffle_id: raffleId, number, status },
-      { onConflict: "raffle_id,number" }
-    );
+    .upsert(upsertData, { onConflict: "raffle_id,number" });
 
   if (error) {
     if (error.code === "23505") {

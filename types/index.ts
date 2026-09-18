@@ -28,6 +28,12 @@ export interface Ticket {
   raffle_id: string;
   number: number;
   status: TicketStatus;
+  participant_name: string | null;
+  participant_phone: string | null;
+  amount_paid: number;
+  fully_paid: boolean;
+  delivery_address: string | null;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }

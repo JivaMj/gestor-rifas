@@ -14,6 +14,8 @@ import {
   selectRandomWinner,
   selectManualWinner,
 } from "@/actions/tickets";
+import type { TicketFormData } from "@/components/ticket-modal";
+import { TicketModal } from "@/components/ticket-modal";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,15 +64,16 @@ export default function ManageRafflePage() {
   const [loading, setLoading] = useState(true);
 
   const [ticketSearch, setTicketSearch] = useState("");
-  const [ticketActionLoading, setTicketActionLoading] = useState<number | null>(
-    null
-  );
 
   const [winnerLoading, setWinnerLoading] = useState(false);
   const [manualNumber, setManualNumber] = useState("");
   const [manualSource, setManualSource] = useState("");
   const [winnerError, setWinnerError] = useState("");
   const [winnerSuccess, setWinnerSuccess] = useState("");
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalNumber, setModalNumber] = useState(0);
+  const [modalLoading, setModalLoading] = useState(false);
 
   useEffect(() => {
     const urlCode = searchParams.get("code");
@@ -132,61 +135,81 @@ export default function ManageRafflePage() {
     }
   }
 
-  async function handleTicketAction(
-    number: number,
-    action: "sold" | "reserved" | "release"
-  ) {
+  function openModal(num: number) {
+    setModalNumber(num);
+    setModalOpen(true);
+  }
+
+  function closeModal() {
+    setModalOpen(false);
+    setModalNumber(0);
+  }
+
+  async function handleModalSave(data: TicketFormData) {
+    const num = modalNumber;
     const previousTickets = tickets;
+    const isEdit = tickets.some((t) => t.number === num);
 
-    const newStatus = action === "release" ? null : action;
-
+    // Optimistic update
     setTickets((prev) => {
-      const exists = prev.some((t) => t.number === number);
+      const exists = prev.some((t) => t.number === num);
+      const optimisticTicket: Ticket = {
+        id: isEdit ? (prev.find((t) => t.number === num)?.id ?? `optimistic-${num}`) : `optimistic-${num}`,
+        raffle_id: raffleId,
+        number: num,
+        status: data.status,
+        participant_name: data.participant_name || null,
+        participant_phone: data.participant_phone || null,
+        amount_paid: data.amount_paid,
+        fully_paid: data.fully_paid,
+        delivery_address: data.delivery_address || null,
+        notes: data.notes || null,
+        created_at: isEdit ? (prev.find((t) => t.number === num)?.created_at ?? new Date().toISOString()) : new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
       if (exists) {
-        if (newStatus === null) {
-          return prev.filter((t) => t.number !== number);
-        }
-        return prev.map((t) =>
-          t.number === number ? { ...t, status: newStatus } : t
-        );
+        return prev.map((t) => (t.number === num ? optimisticTicket : t));
       }
-      if (newStatus) {
-        return [
-          ...prev,
-          {
-            id: `optimistic-${number}`,
-            raffle_id: raffleId,
-            number,
-            status: newStatus,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-        ];
-      }
-      return prev;
+      return [...prev, optimisticTicket];
     });
 
-    setTicketActionLoading(number);
-
-    let result;
-    if (action === "release") {
-      result = await releaseTicket(raffleId, number);
-    } else {
-      result = await setTicketStatus(raffleId, number, action);
-    }
-
-    setTicketActionLoading(null);
+    setModalLoading(true);
+    const result = await setTicketStatus(raffleId, num, data.status, {
+      participant_name: data.participant_name,
+      participant_phone: data.participant_phone,
+      amount_paid: data.amount_paid,
+      fully_paid: data.fully_paid,
+      delivery_address: data.delivery_address,
+      notes: data.notes,
+    });
+    setModalLoading(false);
 
     if (result.success) {
-      const labels = {
-        sold: "marcado como vendido",
-        reserved: "reservado",
-        release: "liberado",
-      };
-      toast("success", `Numero ${labels[action]}`);
+      toast("success", isEdit ? "Datos actualizados" : "Numero asignado");
+      closeModal();
     } else {
       setTickets(previousTickets);
-      toast("error", result.error || "Error al actualizar numero");
+      toast("error", result.error || "Error al guardar");
+    }
+  }
+
+  async function handleModalRelease() {
+    const num = modalNumber;
+    const previousTickets = tickets;
+
+    // Optimistic update
+    setTickets((prev) => prev.filter((t) => t.number !== num));
+
+    setModalLoading(true);
+    const result = await releaseTicket(raffleId, num);
+    setModalLoading(false);
+
+    if (result.success) {
+      toast("success", "Numero liberado");
+      closeModal();
+    } else {
+      setTickets(previousTickets);
+      toast("error", result.error || "Error al liberar");
     }
   }
 
@@ -328,7 +351,7 @@ export default function ManageRafflePage() {
     );
   }
 
-  const ticketMap = new Map(tickets.map((t) => [t.number, t.status]));
+  const ticketMap = new Map(tickets.map((t) => [t.number, t]));
   const filteredTickets = Array.from(
     { length: raffle.number_to - raffle.number_from + 1 },
     (_, i) => raffle.number_from + i
@@ -338,6 +361,7 @@ export default function ManageRafflePage() {
   });
 
   const numberWidth = raffle.number_to.toString().length;
+  const modalTicket = ticketMap.get(modalNumber) ?? null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -455,6 +479,7 @@ export default function ManageRafflePage() {
 
         {/* Tab: Tickets */}
         {tab === "tickets" && (
+          <>
           <Card className="border-0 shadow-md">
             <CardHeader>
               <h2 className="font-extrabold text-gray-900">Numeros</h2>
@@ -484,129 +509,67 @@ export default function ManageRafflePage() {
 
               <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-1.5">
                 {filteredTickets.map((num) => {
-                  const status = ticketMap.get(num);
-                  const isSold = status === "sold";
-                  const isReserved = status === "reserved";
-                  const isLoading = ticketActionLoading === num;
+                  const ticket = ticketMap.get(num);
+                  const isSold = ticket?.status === "sold";
+                  const isReserved = ticket?.status === "reserved";
+                  const isAssigned = isSold || isReserved;
 
                   return (
                     <div key={num} className="group relative">
-                      <div
-                        className={`aspect-square flex items-center justify-center rounded-lg text-xs font-semibold transition-all ${
+                      <button
+                        onClick={() => raffle.status === "active" && openModal(num)}
+                        disabled={raffle.status !== "active"}
+                        className={`aspect-square w-full flex flex-col items-center justify-center rounded-lg text-xs font-semibold transition-all ${
                           isSold
-                            ? "bg-green-100 border border-green-200 text-green-700"
+                            ? "bg-green-100 border border-green-200 text-green-700 hover:bg-green-200"
                             : isReserved
-                            ? "bg-amber-100 border border-amber-200 text-amber-700"
-                            : "bg-gray-50 border border-gray-200 text-gray-600 group-hover:bg-gray-100"
+                            ? "bg-amber-100 border border-amber-200 text-amber-700 hover:bg-amber-200"
+                            : raffle.status === "active"
+                            ? "bg-gray-50 border border-gray-200 text-gray-600 hover:bg-amber-50 hover:border-amber-300 cursor-pointer"
+                            : "bg-gray-50 border border-gray-200 text-gray-400 cursor-not-allowed"
                         }`}
                       >
-                        {isLoading ? (
-                          <svg
-                            className="animate-spin h-3 w-3"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                            />
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                            />
-                          </svg>
-                        ) : (
-                          <>
-                            <span className="group-hover:hidden">
-                              {num.toString().padStart(numberWidth, "0")}
-                            </span>
-                            {raffle.status === "active" && (
-                              <div className="hidden group-hover:flex items-center gap-0.5">
-                                {!isSold && (
-                                  <button
-                                    onClick={() =>
-                                      handleTicketAction(num, "sold")
-                                    }
-                                    className="p-0.5 rounded bg-green-500 text-white hover:bg-green-600 transition-colors"
-                                    title="Vender"
-                                  >
-                                    <svg
-                                      className="w-2.5 h-2.5"
-                                      fill="none"
-                                      viewBox="0 0 24 24"
-                                      strokeWidth={2.5}
-                                      stroke="currentColor"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        d="M4.5 12.75l6 6 9-13.5"
-                                      />
-                                    </svg>
-                                  </button>
-                                )}
-                                {!isReserved && (
-                                  <button
-                                    onClick={() =>
-                                      handleTicketAction(num, "reserved")
-                                    }
-                                    className="p-0.5 rounded bg-amber-500 text-white hover:bg-amber-600 transition-colors"
-                                    title="Reservar"
-                                  >
-                                    <svg
-                                      className="w-2.5 h-2.5"
-                                      fill="none"
-                                      viewBox="0 0 24 24"
-                                      strokeWidth={2.5}
-                                      stroke="currentColor"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"
-                                      />
-                                    </svg>
-                                  </button>
-                                )}
-                                {(isSold || isReserved) && (
-                                  <button
-                                    onClick={() =>
-                                      handleTicketAction(num, "release")
-                                    }
-                                    className="p-0.5 rounded bg-red-500 text-white hover:bg-red-600 transition-colors"
-                                    title="Liberar"
-                                  >
-                                    <svg
-                                      className="w-2.5 h-2.5"
-                                      fill="none"
-                                      viewBox="0 0 24 24"
-                                      strokeWidth={2.5}
-                                      stroke="currentColor"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        d="M6 18L18 6M6 6l12 12"
-                                      />
-                                    </svg>
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </>
+                        <span>
+                          {num.toString().padStart(numberWidth, "0")}
+                        </span>
+                        {isAssigned && (
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full mt-0.5 ${
+                              isSold ? "bg-green-500" : "bg-amber-500"
+                            }`}
+                          />
                         )}
-                      </div>
+                      </button>
+
+                      {/* Tooltip with participant name */}
+                      {isAssigned && ticket?.participant_name && (
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-[10px] rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                          {ticket.participant_name}
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
             </CardContent>
           </Card>
+
+          {/* Ticket Modal */}
+          {raffle.status === "active" && (
+            <TicketModal
+              isOpen={modalOpen}
+              number={modalNumber}
+              numberWidth={numberWidth}
+              ticket={modalTicket}
+              ticketPrice={raffle.ticket_price}
+              onSave={handleModalSave}
+              onRelease={handleModalRelease}
+              onClose={closeModal}
+              loading={modalLoading}
+            />
+          )}
+          </>
         )}
 
         {/* Tab: Winner */}
