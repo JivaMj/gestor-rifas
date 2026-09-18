@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,7 +28,7 @@ export interface TicketFormData {
   notes: string;
 }
 
-function getInitialFormData(ticket: Ticket | null, ticketPrice: number): TicketFormData {
+function buildInitialFormData(ticket: Ticket | null, ticketPrice: number): TicketFormData {
   if (ticket) {
     return {
       status: ticket.status,
@@ -66,10 +66,23 @@ export function TicketModal({
   const [isEditing, setIsEditing] = useState(!isAssigned);
 
   const [formData, setFormData] = useState<TicketFormData>(() =>
-    getInitialFormData(ticket, ticketPrice)
+    buildInitialFormData(ticket, ticketPrice)
   );
 
-  const formKey = useMemo(() => `${number}-${ticket?.id ?? "new"}`, [number, ticket?.id]);
+  const prevNumberRef = useRef(number);
+  const prevTicketIdRef = useRef(ticket?.id ?? null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const ticketChanged = prevTicketIdRef.current !== (ticket?.id ?? null);
+    const numberChanged = prevNumberRef.current !== number;
+    if (ticketChanged || numberChanged) {
+      setFormData(buildInitialFormData(ticket, ticketPrice));
+      setIsEditing(!ticket);
+      prevNumberRef.current = number;
+      prevTicketIdRef.current = ticket?.id ?? null;
+    }
+  }, [isOpen, number, ticket, ticketPrice]);
 
   if (!isOpen) return null;
 
@@ -125,7 +138,7 @@ export function TicketModal({
         </div>
 
         {/* Content */}
-        <form key={formKey} onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {/* Status selector - only for new assignments */}
           {!isAssigned && (
             <div className="flex gap-2">
