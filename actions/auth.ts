@@ -1,7 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { hashAdminCode } from "@/lib/crypto";
+import { hashAdminCode, safeCompare } from "@/lib/crypto";
 
 const MASTER_CODE_COOKIE = "master_admin_session";
 
@@ -13,17 +13,17 @@ export async function verifyMasterCode(
     return { success: false, error: "Código maestro no configurado" };
   }
 
-  if (code !== masterCode) {
+  if (!safeCompare(code, masterCode)) {
     return { success: false, error: "Código de administración inválido" };
   }
 
   const cookieStore = await cookies();
-  const hash = hashAdminCode(code);
+  const hash = await hashAdminCode(code);
   cookieStore.set(MASTER_CODE_COOKIE, hash, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: 60 * 60 * 24, // 24 hours
+    maxAge: 60 * 60 * 24,
     path: "/",
   });
 
@@ -38,8 +38,8 @@ export async function isMasterAuthenticated(): Promise<boolean> {
   const session = cookieStore.get(MASTER_CODE_COOKIE);
   if (!session) return false;
 
-  const expectedHash = hashAdminCode(masterCode);
-  return session.value === expectedHash;
+  const expectedHash = await hashAdminCode(masterCode);
+  return safeCompare(session.value, expectedHash);
 }
 
 export async function logoutMaster(): Promise<void> {

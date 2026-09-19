@@ -6,12 +6,10 @@ const MASTER_CODE_COOKIE = "master_admin_session";
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow the login page
   if (pathname === "/admin") {
     return NextResponse.next();
   }
 
-  // Protect all /admin/* routes
   if (pathname.startsWith("/admin")) {
     const session = request.cookies.get(MASTER_CODE_COOKIE);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { NumberGrid } from "@/components/number-grid";
 import { formatDateShort } from "@/lib/dates";
 import type { Raffle } from "@/types";
@@ -10,10 +10,26 @@ interface RaffleClientProps {
   tickets: { number: number; status: string }[];
 }
 
-export function RaffleClient({ raffle, tickets }: RaffleClientProps) {
+export function RaffleClient({ raffle, tickets: initialTickets }: RaffleClientProps) {
   const [selectedNumber, setSelectedNumber] = useState<number | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
+  const [tickets, setTickets] = useState(initialTickets);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const refreshTickets = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const res = await fetch(`/api/raffle/${raffle.slug}/tickets`);
+      if (res.ok) {
+        const data = await res.json();
+        setTickets(data.tickets);
+      }
+    } catch {
+      // silent
+    }
+    setRefreshing(false);
+  }, [raffle.slug]);
 
   const ticketMap = new Map(tickets.map((t) => [t.number, t.status]));
   const soldCount = tickets.filter((t) => t.status === "sold").length;
@@ -183,9 +199,31 @@ export function RaffleClient({ raffle, tickets }: RaffleClientProps) {
                 <span className="text-gray-500">
                   Numeros: {raffle.number_from} - {raffle.number_to}
                 </span>
-                <span className="text-amber-600 font-semibold">
-                  {availableCount} disponibles
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-amber-600 font-semibold">
+                    {availableCount} disponibles
+                  </span>
+                  <button
+                    onClick={refreshTickets}
+                    disabled={refreshing}
+                    className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
+                    title="Actualizar numeros"
+                  >
+                    <svg
+                      className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={2}
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182"
+                      />
+                    </svg>
+                  </button>
+                </div>
               </div>
               <div className="w-full bg-gray-100 rounded-full h-2.5">
                 <div

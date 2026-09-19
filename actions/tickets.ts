@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { randomInt } from "crypto";
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { setTicketStatusSchema, releaseTicketSchema } from "@/schemas/raffle";
+import { verifyRaffleCode } from "./raffles";
 
 export interface TicketData {
   participant_name?: string;
@@ -17,8 +19,16 @@ export async function setTicketStatus(
   raffleId: string,
   number: number,
   status: "reserved" | "sold",
-  ticketData?: TicketData
+  ticketData?: TicketData,
+  adminCode?: string
 ): Promise<{ success: boolean; error?: string }> {
+  if (adminCode) {
+    const auth = await verifyRaffleCode(raffleId, adminCode);
+    if (!auth.success) {
+      return { success: false, error: "No autorizado" };
+    }
+  }
+
   const parsed = setTicketStatusSchema.safeParse({
     raffle_id: raffleId,
     number,
@@ -31,7 +41,6 @@ export async function setTicketStatus(
 
   const supabase = getSupabaseAdminClient();
 
-  // Check raffle status
   const { data: raffle } = await supabase
     .from("raffles")
     .select("status, number_from, number_to, slug")
@@ -67,7 +76,6 @@ export async function setTicketStatus(
       upsertData.notes = ticketData.notes || null;
   }
 
-  // Upsert: if ticket exists, update status; if not, insert
   const { error } = await supabase
     .from("tickets")
     .upsert(upsertData, { onConflict: "raffle_id,number" });
@@ -87,8 +95,16 @@ export async function setTicketStatus(
 
 export async function releaseTicket(
   raffleId: string,
-  number: number
+  number: number,
+  adminCode?: string
 ): Promise<{ success: boolean; error?: string }> {
+  if (adminCode) {
+    const auth = await verifyRaffleCode(raffleId, adminCode);
+    if (!auth.success) {
+      return { success: false, error: "No autorizado" };
+    }
+  }
+
   const parsed = releaseTicketSchema.safeParse({ raffle_id: raffleId, number });
   if (!parsed.success) {
     return { success: false, error: "Datos inválidos" };
@@ -119,8 +135,16 @@ export async function releaseTicket(
 }
 
 export async function selectRandomWinner(
-  raffleId: string
+  raffleId: string,
+  adminCode?: string
 ): Promise<{ success: boolean; winnerNumber?: number; error?: string }> {
+  if (adminCode) {
+    const auth = await verifyRaffleCode(raffleId, adminCode);
+    if (!auth.success) {
+      return { success: false, error: "No autorizado" };
+    }
+  }
+
   const supabase = getSupabaseAdminClient();
 
   const { data: raffle } = await supabase
@@ -147,7 +171,7 @@ export async function selectRandomWinner(
     return { success: false, error: "No hay números vendidos para seleccionar" };
   }
 
-  const randomIndex = Math.floor(Math.random() * soldTickets.length);
+  const randomIndex = randomInt(soldTickets.length);
   const winnerNumber = soldTickets[randomIndex].number;
 
   const { error } = await supabase
@@ -173,8 +197,16 @@ export async function selectRandomWinner(
 export async function selectManualWinner(
   raffleId: string,
   winnerNumber: number,
-  source: string
+  source: string,
+  adminCode?: string
 ): Promise<{ success: boolean; error?: string }> {
+  if (adminCode) {
+    const auth = await verifyRaffleCode(raffleId, adminCode);
+    if (!auth.success) {
+      return { success: false, error: "No autorizado" };
+    }
+  }
+
   if (!source.trim()) {
     return { success: false, error: "La fuente/referencia es requerida" };
   }
@@ -199,7 +231,6 @@ export async function selectManualWinner(
     return { success: false, error: "El número ganador está fuera del rango" };
   }
 
-  // Verify the number is sold
   const { data: ticket } = await supabase
     .from("tickets")
     .select("number")

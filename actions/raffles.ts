@@ -15,8 +15,11 @@ import {
   type CreateRaffleInput,
   type UpdateRaffleInput,
 } from "@/schemas/raffle";
-import type { Raffle, RaffleStats } from "@/types";
+import type { Raffle, RaffleStats, Ticket } from "@/types";
 import { isMasterAuthenticated } from "./auth";
+
+const RAFFLE_PUBLIC_COLUMNS =
+  "id, slug, title, description, prize_image_url, raffle_date, terms, number_from, number_to, ticket_price, whatsapp, winner_method, winner_number, winner_source, status, created_at, updated_at";
 
 export async function createRaffle(
   input: CreateRaffleInput,
@@ -41,7 +44,7 @@ export async function createRaffle(
   const data = parsed.data;
   const slug = generateSlug(data.title);
   const adminCode = generateRaffleCode();
-  const adminCodeHash = hashAdminCode(adminCode);
+  const adminCodeHash = await hashAdminCode(adminCode);
 
   const supabase = getSupabaseAdminClient();
 
@@ -127,7 +130,7 @@ export async function getRaffleBySlug(
 
   const { data: raffle, error } = await supabase
     .from("raffles")
-    .select("*")
+    .select(RAFFLE_PUBLIC_COLUMNS)
     .eq("slug", slug)
     .single();
 
@@ -172,6 +175,32 @@ export async function getRaffleById(
   };
 }
 
+export async function getRaffleByIdForManage(
+  id: string
+): Promise<{ raffle: Raffle | null; tickets: Ticket[] }> {
+  const supabase = getSupabaseAdminClient();
+
+  const { data: raffle, error } = await supabase
+    .from("raffles")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error || !raffle) {
+    return { raffle: null, tickets: [] };
+  }
+
+  const { data: tickets } = await supabase
+    .from("tickets")
+    .select("*")
+    .eq("raffle_id", raffle.id);
+
+  return {
+    raffle: raffle as Raffle,
+    tickets: (tickets || []) as Ticket[],
+  };
+}
+
 export async function verifyRaffleCode(
   raffleId: string,
   code: string
@@ -205,6 +234,11 @@ export async function updateRaffle(
   input: UpdateRaffleInput,
   imageFile?: File
 ): Promise<{ success: boolean; error?: string; warning?: string }> {
+  const auth = await isMasterAuthenticated();
+  if (!auth) {
+    return { success: false, error: "No autenticado" };
+  }
+
   const parsed = updateRaffleSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message };
@@ -288,6 +322,11 @@ export async function getRaffleStats(
 export async function finishRaffle(
   raffleId: string
 ): Promise<{ success: boolean; error?: string }> {
+  const auth = await isMasterAuthenticated();
+  if (!auth) {
+    return { success: false, error: "No autenticado" };
+  }
+
   const supabase = getSupabaseAdminClient();
 
   const { error } = await supabase
@@ -315,7 +354,7 @@ export async function regenerateAdminCode(
 
   const supabase = getSupabaseAdminClient();
   const newCode = generateRaffleCode();
-  const newHash = hashAdminCode(newCode);
+  const newHash = await hashAdminCode(newCode);
 
   const { error } = await supabase
     .from("raffles")
@@ -330,4 +369,62 @@ export async function regenerateAdminCode(
   revalidatePath(`/admin/rifa/${raffleId}`);
 
   return { success: true, code: newCode };
+}
+
+export async function updateRaffleImage(
+  raffleId: string,
+  imageFile: File,
+  adminCode: string
+): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
+  const auth = await verifyRaffleCode(raffleId, adminCode);
+  if (!auth.success) {
+    return { success: false, error: "No autorizado" };
+  }
+
+  const supabase = getSupabaseAdminClient();
+
+  const { data: raffle } = await supabase
+    .from("raffles")
+    .select("prize_image_url")
+    .eq("id", raffleId)
+    .single();
+
+  if (raffle?.prize_image_url) {
+    const oldPath = raffle.prize_image_url.split("/object/public/raffle-images/")[1];
+    if (oldPath) {
+      await supabase.storage.from("raffle-images").remove([oldPath]);
+    }
+  }
+
+  const ext = imageFile.name.split(".").pop() || "jpg";
+  const filePath = `${raffleId}/prize.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("raffle-images")
+    .upload(filePath, imageFile, {
+      contentType: imageFile.type,
+      upsert: true,
+    });
+
+  if (uploadError) {
+    return { success: false, error: "No se pudo subir la imagen" };
+  }
+
+  const { data: urlData } = supabase.storage
+    .from("raffle-images")
+    .getPublicUrl(filePath);
+
+  const { error: updateError } = await supabase
+    .from("raffles")
+    .update({ prize_image_url: urlData.publicUrl })
+    .eq("id", raffleId);
+
+  if (updateError) {
+    return { success: false, error: "No se pudo actualizar la imagen" };
+  }
+
+  revalidatePath(`/manage/${raffleId}`);
+  revalidatePath(`/r/${raffleId}`);
+
+  return { success: true, imageUrl: urlData.publicUrl };
 }

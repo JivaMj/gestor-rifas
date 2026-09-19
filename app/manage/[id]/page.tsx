@@ -4,9 +4,10 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
-  getRaffleById,
+  getRaffleByIdForManage,
   verifyRaffleCode,
   finishRaffle,
+  updateRaffleImage,
 } from "@/actions/raffles";
 import {
   setTicketStatus,
@@ -24,7 +25,7 @@ import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { formatDateLong } from "@/lib/dates";
 import type { Raffle, RaffleStats, Ticket } from "@/types";
 
-type Tab = "tickets" | "winner";
+type Tab = "tickets" | "participants" | "winner";
 
 function computeStats(
   tickets: Ticket[],
@@ -54,6 +55,7 @@ export default function ManageRafflePage() {
   const raffleId = params.id as string;
 
   const [codeVerified, setCodeVerified] = useState(false);
+  const [verifiedCode, setVerifiedCode] = useState("");
   const [codeInput, setCodeInput] = useState("");
   const [codeError, setCodeError] = useState("");
   const [codeLoading, setCodeLoading] = useState(false);
@@ -84,6 +86,7 @@ export default function ManageRafflePage() {
         const result = await verifyRaffleCode(raffleId, urlCode);
         setCodeLoading(false);
         if (result.success) {
+          setVerifiedCode(urlCode);
           setCodeVerified(true);
           router.replace(`/manage/${raffleId}`);
         } else {
@@ -106,11 +109,11 @@ export default function ManageRafflePage() {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const result = await getRaffleById(raffleId);
+      const result = await getRaffleByIdForManage(raffleId);
       if (!cancelled) {
         if (result.raffle) {
           setRaffle(result.raffle);
-          setTickets(result.tickets as Ticket[]);
+          setTickets(result.tickets);
         }
         setLoading(false);
       }
@@ -129,6 +132,7 @@ export default function ManageRafflePage() {
     setCodeLoading(false);
 
     if (result.success) {
+      setVerifiedCode(codeInput);
       setCodeVerified(true);
     } else {
       setCodeError(result.error || "Codigo invalido");
@@ -181,7 +185,7 @@ export default function ManageRafflePage() {
       fully_paid: data.fully_paid,
       delivery_address: data.delivery_address,
       notes: data.notes,
-    });
+    }, verifiedCode);
     setModalLoading(false);
 
     if (result.success) {
@@ -201,7 +205,7 @@ export default function ManageRafflePage() {
     setTickets((prev) => prev.filter((t) => t.number !== num));
 
     setModalLoading(true);
-    const result = await releaseTicket(raffleId, num);
+    const result = await releaseTicket(raffleId, num, verifiedCode);
     setModalLoading(false);
 
     if (result.success) {
@@ -218,7 +222,7 @@ export default function ManageRafflePage() {
     setWinnerError("");
     setWinnerSuccess("");
 
-    const result = await selectRandomWinner(raffleId);
+    const result = await selectRandomWinner(raffleId, verifiedCode);
     setWinnerLoading(false);
 
     if (result.success && result.winnerNumber !== undefined) {
@@ -248,7 +252,8 @@ export default function ManageRafflePage() {
     const result = await selectManualWinner(
       raffleId,
       Number(manualNumber),
-      manualSource
+      manualSource,
+      verifiedCode
     );
     setWinnerLoading(false);
 
@@ -362,6 +367,7 @@ export default function ManageRafflePage() {
 
   const numberWidth = raffle.number_to.toString().length;
   const modalTicket = ticketMap.get(modalNumber) ?? null;
+  const assignedTickets = tickets.filter((t) => t.participant_name);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -407,6 +413,34 @@ export default function ManageRafflePage() {
                   Ver publica
                 </Button>
               </a>
+              <label className="inline-flex items-center justify-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-xl transition-all text-gray-600 hover:text-gray-900 hover:bg-gray-100 cursor-pointer">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                </svg>
+                Imagen
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 5 * 1024 * 1024) {
+                      toast("error", "La imagen no puede superar 5MB");
+                      return;
+                    }
+                    toast("info", "Subiendo imagen...");
+                    const result = await updateRaffleImage(raffleId, file, verifiedCode);
+                    if (result.success && result.imageUrl) {
+                      setRaffle((prev) => prev ? { ...prev, prize_image_url: result.imageUrl! } : prev);
+                      toast("success", "Imagen actualizada");
+                    } else {
+                      toast("error", result.error || "Error al subir imagen");
+                    }
+                    e.target.value = "";
+                  }}
+                />
+              </label>
               {raffle.status === "active" && (
                 <Button variant="danger" size="sm" onClick={handleFinish}>
                   Finalizar
@@ -460,6 +494,7 @@ export default function ManageRafflePage() {
           {(
             [
               { key: "tickets" as Tab, label: "Numeros" },
+              { key: "participants" as Tab, label: "Participantes" },
               { key: "winner" as Tab, label: "Ganador" },
             ] as const
           ).map((t) => (
@@ -570,6 +605,93 @@ export default function ManageRafflePage() {
             />
           )}
           </>
+        )}
+
+        {/* Tab: Participants */}
+        {tab === "participants" && (
+          <Card className="border-0 shadow-md">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <h2 className="font-extrabold text-gray-900">Participantes</h2>
+                {assignedTickets.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const headers = ["Numero", "Nombre", "Telefono", "Pagado", "Completo", "Direccion", "Notas", "Estado"];
+                      const rows = assignedTickets.map((t) => [
+                        t.number.toString().padStart(numberWidth, "0"),
+                        t.participant_name || "",
+                        t.participant_phone || "",
+                        `$${(t.amount_paid || 0).toLocaleString("es-CO")}`,
+                        t.fully_paid ? "Si" : "No",
+                        t.delivery_address || "",
+                        t.notes || "",
+                        t.status === "sold" ? "Vendido" : "Reservado",
+                      ]);
+                      const csv = [headers, ...rows].map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");
+                      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `participantes-${raffle.title.toLowerCase().replace(/\s+/g, "-")}.csv`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      toast("success", "CSV exportado");
+                    }}
+                  >
+                    Exportar CSV
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {assignedTickets.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">
+                  No hay participantes registrados
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Numero</th>
+                        <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Nombre</th>
+                        <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Telefono</th>
+                        <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Pagado</th>
+                        <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Estado</th>
+                        <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase hidden sm:table-cell">Direccion</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {assignedTickets.map((t) => (
+                        <tr key={t.number} className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer" onClick={() => openModal(t.number)}>
+                          <td className="py-2.5 px-3 font-mono font-bold">
+                            {t.number.toString().padStart(numberWidth, "0")}
+                          </td>
+                          <td className="py-2.5 px-3 font-medium">{t.participant_name || "-"}</td>
+                          <td className="py-2.5 px-3 text-gray-500">{t.participant_phone || "-"}</td>
+                          <td className="py-2.5 px-3 text-right font-medium">
+                            ${(t.amount_paid || 0).toLocaleString("es-CO")}
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+                              t.fully_paid
+                                ? "bg-green-100 text-green-700"
+                                : "bg-amber-100 text-amber-700"
+                            }`}>
+                              {t.fully_paid ? "Pagado" : "Pendiente"}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-gray-500 text-xs hidden sm:table-cell">{t.delivery_address || "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {/* Tab: Winner */}

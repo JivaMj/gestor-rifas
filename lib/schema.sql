@@ -109,10 +109,7 @@ CREATE POLICY "Public can view tickets"
   ON tickets FOR SELECT
   USING (true);
 
--- Allow public read access to creation codes (for validation)
-CREATE POLICY "Public can view unused creation codes"
-  ON creation_codes FOR SELECT
-  USING (true);
+-- creation_codes: no public SELECT policy (validated server-side via service role)
 
 -- All write operations go through server-side service role (bypasses RLS)
 

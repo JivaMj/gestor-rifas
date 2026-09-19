@@ -1,15 +1,37 @@
-import { createHash, randomBytes } from "crypto";
+import { randomBytes, timingSafeEqual } from "crypto";
+import { hash, compare } from "bcryptjs";
 
-export function hashAdminCode(code: string): string {
-  return createHash("sha256").update(code).digest("hex");
+const BCRYPT_ROUNDS = 12;
+
+export async function hashAdminCode(code: string): Promise<string> {
+  return hash(code, BCRYPT_ROUNDS);
+}
+
+export async function compareAdminCode(
+  plainCode: string,
+  hashedCode: string
+): Promise<boolean> {
+  return compare(plainCode, hashedCode);
+}
+
+export function safeCompare(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
+
+function secureRandomInt(max: number): number {
+  const bytes = randomBytes(4);
+  const raw = bytes.readUInt32BE(0);
+  return raw % max;
 }
 
 export function generateRaffleCode(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let code = "RIFA-";
-  const bytes = randomBytes(6);
   for (let i = 0; i < 6; i++) {
-    code += chars[bytes[i] % chars.length];
+    code += chars[secureRandomInt(chars.length)];
   }
   return code;
 }
@@ -17,9 +39,8 @@ export function generateRaffleCode(): string {
 export function generateCreationCode(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let code = "CREAR-";
-  const bytes = randomBytes(6);
   for (let i = 0; i < 6; i++) {
-    code += chars[bytes[i] % chars.length];
+    code += chars[secureRandomInt(chars.length)];
   }
   return code;
 }
@@ -36,14 +57,4 @@ export function generateSlug(title: string): string {
 
   const suffix = randomBytes(3).toString("hex");
   return `${base}-${suffix}`;
-}
-
-export function compareAdminCode(
-  plainCode: string,
-  hash: string
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    const computed = hashAdminCode(plainCode);
-    resolve(computed === hash);
-  });
 }
