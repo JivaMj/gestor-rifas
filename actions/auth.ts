@@ -1,7 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { hashAdminCode, safeCompare } from "@/lib/crypto";
+import { hashAdminCode, compareAdminCode, safeCompare } from "@/lib/crypto";
 
 const MASTER_CODE_COOKIE = "master_admin_session";
 
@@ -38,8 +38,7 @@ export async function isMasterAuthenticated(): Promise<boolean> {
   const session = cookieStore.get(MASTER_CODE_COOKIE);
   if (!session) return false;
 
-  const expectedHash = await hashAdminCode(masterCode);
-  return safeCompare(session.value, expectedHash);
+  return compareAdminCode(masterCode, session.value);
 }
 
 export async function logoutMaster(): Promise<void> {

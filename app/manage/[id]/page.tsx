@@ -59,6 +59,8 @@ export default function ManageRafflePage() {
   const [codeInput, setCodeInput] = useState("");
   const [codeError, setCodeError] = useState("");
   const [codeLoading, setCodeLoading] = useState(false);
+  const [codeAttempts, setCodeAttempts] = useState(0);
+  const maxCodeAttempts = 3;
 
   const [raffle, setRaffle] = useState<Raffle | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -79,7 +81,7 @@ export default function ManageRafflePage() {
 
   useEffect(() => {
     const urlCode = searchParams.get("code");
-    if (urlCode && !codeVerified && !codeLoading) {
+    if (urlCode && !codeVerified && !codeLoading && codeAttempts < maxCodeAttempts) {
       (async () => {
         setCodeLoading(true);
         setCodeError("");
@@ -90,11 +92,12 @@ export default function ManageRafflePage() {
           setCodeVerified(true);
           router.replace(`/manage/${raffleId}`);
         } else {
+          setCodeAttempts((prev) => prev + 1);
           setCodeError(result.error || "Codigo invalido");
         }
       })();
     }
-  }, [searchParams, codeVerified, codeLoading, raffleId, router]);
+  }, [searchParams, codeVerified, codeLoading, codeAttempts, raffleId, router]);
 
   const stats = useMemo(
     () =>
@@ -125,6 +128,10 @@ export default function ManageRafflePage() {
 
   async function handleVerifyCode(e: React.FormEvent) {
     e.preventDefault();
+    if (codeAttempts >= maxCodeAttempts) {
+      setCodeError("Demasiados intentos. Recarga la pagina para intentar de nuevo.");
+      return;
+    }
     setCodeLoading(true);
     setCodeError("");
 
@@ -135,7 +142,13 @@ export default function ManageRafflePage() {
       setVerifiedCode(codeInput);
       setCodeVerified(true);
     } else {
-      setCodeError(result.error || "Codigo invalido");
+      const remaining = maxCodeAttempts - codeAttempts - 1;
+      setCodeAttempts((prev) => prev + 1);
+      if (remaining <= 0) {
+        setCodeError("Demasiados intentos fallidos. Recarga la pagina para intentar de nuevo.");
+      } else {
+        setCodeError(`${result.error || "Codigo invalido"} (${remaining} intento${remaining !== 1 ? "s" : ""} restante${remaining !== 1 ? "s" : ""})`);
+      }
     }
   }
 
@@ -323,6 +336,7 @@ export default function ManageRafflePage() {
                 placeholder="RIFA-XXXXXX"
                 autoFocus
                 error={codeError}
+                disabled={codeAttempts >= maxCodeAttempts}
               />
               <Button
                 type="submit"
@@ -330,6 +344,7 @@ export default function ManageRafflePage() {
                 className="w-full"
                 size="lg"
                 variant="orange"
+                disabled={codeAttempts >= maxCodeAttempts}
               >
                 Acceder
               </Button>
