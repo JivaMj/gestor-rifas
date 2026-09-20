@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { verifyFiadoCode, getFiadoById, updateFiado } from "@/actions/fiados";
+import { useParams, useRouter } from "next/navigation";
+import { getFiadoById, updateFiado } from "@/actions/fiados";
+import { getAuthUser } from "@/actions/auth";
 import { validateImageFile } from "@/lib/validation";
 import { formatDateLong } from "@/lib/dates";
 import { useToast } from "@/components/ui/toast";
@@ -11,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
+import type { Fiado } from "@/types";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("es-CO", {
@@ -24,19 +26,12 @@ function formatCurrency(amount: number): string {
 export default function ManageFiadoPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const params = useParams();
   const fiadoId = params.id as string;
 
-  const [codeVerified, setCodeVerified] = useState(false);
-  const [codeInput, setCodeInput] = useState("");
-  const [codeError, setCodeError] = useState("");
-  const [codeLoading, setCodeLoading] = useState(false);
-  const [codeAttempts, setCodeAttempts] = useState(0);
-  const maxCodeAttempts = 3;
-
   const [fiado, setFiado] = useState<Fiado | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState("");
@@ -52,31 +47,24 @@ export default function ManageFiadoPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   useEffect(() => {
-    const urlCode = searchParams.get("code");
-    if (urlCode && !codeVerified && !codeLoading && codeAttempts < maxCodeAttempts) {
-      (async () => {
-        setCodeLoading(true);
-        setCodeError("");
-        const result = await verifyFiadoCode(fiadoId, urlCode);
-        setCodeLoading(false);
-        if (result.success) {
-        setCodeVerified(true);
-        router.replace(`/fiado/${fiadoId}`);
-        } else {
-          setCodeAttempts((prev) => prev + 1);
-          setCodeError(result.error || "Codigo invalido");
-        }
-      })();
-    }
-  }, [searchParams, codeVerified, codeLoading, codeAttempts, fiadoId, router]);
-
-  useEffect(() => {
-    if (!codeVerified) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
+      const user = await getAuthUser();
+      if (cancelled) return;
+      if (!user) {
+        setAuthError("No autenticado. Inicia sesion para continuar.");
+        setLoading(false);
+        return;
+      }
       const data = await getFiadoById(fiadoId);
-      if (!cancelled && data) {
+      if (cancelled) return;
+      if (data && data.owner_id !== user.id) {
+        setAuthError("No tienes permiso para administrar esta publicacion.");
+        setLoading(false);
+        return;
+      }
+      if (data) {
         setFiado(data);
         setTitle(data.title);
         setDescription(data.description || "");
@@ -90,32 +78,7 @@ export default function ManageFiadoPage() {
       if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [codeVerified, fiadoId]);
-
-  async function handleVerifyCode(e: React.FormEvent) {
-    e.preventDefault();
-    if (codeAttempts >= maxCodeAttempts) {
-      setCodeError("Demasiados intentos. Recarga la pagina para intentar de nuevo.");
-      return;
-    }
-    setCodeLoading(true);
-    setCodeError("");
-
-    const result = await verifyFiadoCode(fiadoId, codeInput);
-    setCodeLoading(false);
-
-    if (result.success) {
-      setCodeVerified(true);
-    } else {
-      const remaining = maxCodeAttempts - codeAttempts - 1;
-      setCodeAttempts((prev) => prev + 1);
-      if (remaining <= 0) {
-        setCodeError("Demasiados intentos fallidos. Recarga la pagina para intentar de nuevo.");
-      } else {
-        setCodeError(`${result.error || "Codigo invalido"} (${remaining} intento${remaining !== 1 ? "s" : ""} restante${remaining !== 1 ? "s" : ""})`);
-      }
-    }
-  }
+  }, [fiadoId]);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -180,61 +143,6 @@ export default function ManageFiadoPage() {
     }
   }
 
-  // Code entry screen
-  if (!codeVerified) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-amber-50 to-orange-50 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full p-6 sm:p-8">
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 mb-4">
-              <svg
-                className="w-7 h-7 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
-                />
-              </svg>
-            </div>
-            <h1 className="text-lg font-extrabold text-gray-900">
-              Administrar publicacion
-            </h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Ingresa el codigo de administracion
-            </p>
-          </div>
-          <form onSubmit={handleVerifyCode} className="space-y-4">
-            <Input
-              type="password"
-              value={codeInput}
-              onChange={(e) => setCodeInput(e.target.value)}
-              placeholder="RIFA-XXXXXX"
-              autoFocus
-              error={codeError}
-              disabled={codeAttempts >= maxCodeAttempts}
-            />
-            <Button
-              type="submit"
-              loading={codeLoading}
-              className="w-full"
-              size="lg"
-              variant="orange"
-              disabled={codeAttempts >= maxCodeAttempts}
-            >
-              Verificar codigo
-            </Button>
-          </form>
-        </Card>
-      </div>
-    );
-  }
-
-  // Loading
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-amber-50 to-orange-50 flex items-center justify-center">
@@ -246,11 +154,30 @@ export default function ManageFiadoPage() {
     );
   }
 
+  if (authError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-amber-50 to-orange-50 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full p-8 text-center">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-red-100 mb-4">
+            <svg className="w-7 h-7 text-red-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+            </svg>
+          </div>
+          <p className="text-gray-900 font-bold mb-2">Acceso denegado</p>
+          <p className="text-gray-500 text-sm mb-6">{authError}</p>
+          <Button variant="ghost" className="w-full" onClick={() => router.push("/dashboard")}>
+            Ir al dashboard
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
   if (!fiado) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-amber-50 to-orange-50 flex items-center justify-center p-4">
         <Card className="max-w-md w-full p-8 text-center">
-          <p className="text-gray-500">Publicacion no encontrada</p>
+          <p className="text-gray-500">No autorizado</p>
         </Card>
       </div>
     );
@@ -460,5 +387,3 @@ export default function ManageFiadoPage() {
     </div>
   );
 }
-
-import type { Fiado } from "@/types";

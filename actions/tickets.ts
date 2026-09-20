@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { randomInt } from "crypto";
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { setTicketStatusSchema, releaseTicketSchema } from "@/schemas/raffle";
-import { verifyRaffleCode } from "./raffles";
 
 export interface TicketData {
   participant_name?: string;
@@ -19,16 +18,8 @@ export async function setTicketStatus(
   raffleId: string,
   number: number,
   status: "reserved" | "sold",
-  ticketData?: TicketData,
-  adminCode?: string
+  ticketData?: TicketData
 ): Promise<{ success: boolean; error?: string }> {
-  if (adminCode) {
-    const auth = await verifyRaffleCode(raffleId, adminCode);
-    if (!auth.success) {
-      return { success: false, error: "No autorizado" };
-    }
-  }
-
   const parsed = setTicketStatusSchema.safeParse({
     raffle_id: raffleId,
     number,
@@ -95,16 +86,8 @@ export async function setTicketStatus(
 
 export async function releaseTicket(
   raffleId: string,
-  number: number,
-  adminCode?: string
+  number: number
 ): Promise<{ success: boolean; error?: string }> {
-  if (adminCode) {
-    const auth = await verifyRaffleCode(raffleId, adminCode);
-    if (!auth.success) {
-      return { success: false, error: "No autorizado" };
-    }
-  }
-
   const parsed = releaseTicketSchema.safeParse({ raffle_id: raffleId, number });
   if (!parsed.success) {
     return { success: false, error: "Datos inválidos" };
@@ -135,16 +118,8 @@ export async function releaseTicket(
 }
 
 export async function selectRandomWinner(
-  raffleId: string,
-  adminCode?: string
+  raffleId: string
 ): Promise<{ success: boolean; winnerNumber?: number; error?: string }> {
-  if (adminCode) {
-    const auth = await verifyRaffleCode(raffleId, adminCode);
-    if (!auth.success) {
-      return { success: false, error: "No autorizado" };
-    }
-  }
-
   const supabase = getSupabaseAdminClient();
 
   const { data: raffle } = await supabase
@@ -197,16 +172,8 @@ export async function selectRandomWinner(
 export async function selectManualWinner(
   raffleId: string,
   winnerNumber: number,
-  source: string,
-  adminCode?: string
+  source: string
 ): Promise<{ success: boolean; error?: string }> {
-  if (adminCode) {
-    const auth = await verifyRaffleCode(raffleId, adminCode);
-    if (!auth.success) {
-      return { success: false, error: "No autorizado" };
-    }
-  }
-
   if (!source.trim()) {
     return { success: false, error: "La fuente/referencia es requerida" };
   }

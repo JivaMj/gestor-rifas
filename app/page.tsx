@@ -15,7 +15,7 @@ export default function HomePage() {
           <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm border border-white/25 rounded-full px-4 py-1.5 mb-8">
             <span className="w-2 h-2 rounded-full bg-green-300 animate-pulse" />
             <span className="text-sm text-white/90 font-medium">
-              Nuevo metodo de rifas en Cienaga
+              Rifas digitales en Cienaga
             </span>
           </div>
 
@@ -26,42 +26,22 @@ export default function HomePage() {
           </h1>
 
           <p className="text-lg sm:text-xl text-white/80 max-w-2xl mx-auto mb-12 leading-relaxed">
-            Solicita tu codigo, crea tu rifa y compartela por WhatsApp.
-            Sin registros complicados, sin pasarelas de pago.
-            Simple, rapido y seguro.
+            Registrate, crea tu rifa y compartela por WhatsApp.
+            Sin pasarelas de pago, sin complicaciones.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
-              href="/create"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-amber-700 px-8 py-4 rounded-2xl font-extrabold text-base hover:bg-amber-50 transition-all active:scale-[0.98] shadow-2xl shadow-black/15"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 4.5v15m7.5-7.5h-15"
-                />
-              </svg>
-              Crear mi rifa
-            </Link>
-            <Link
               href="/rifas"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white/15 backdrop-blur-sm border border-white/25 text-white px-8 py-4 rounded-2xl font-extrabold text-base hover:bg-white/25 transition-all active:scale-[0.98]"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-amber-700 px-8 py-4 rounded-2xl font-extrabold text-base hover:bg-amber-50 transition-all active:scale-[0.98] shadow-2xl shadow-black/15"
             >
               Ver rifas activas
             </Link>
             <Link
-              href="/fiado/create"
+              href="/login"
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white/15 backdrop-blur-sm border border-white/25 text-white px-8 py-4 rounded-2xl font-extrabold text-base hover:bg-white/25 transition-all active:scale-[0.98]"
             >
-              Crear actividad fiada
+              Iniciar sesion
             </Link>
           </div>
         </div>
@@ -83,9 +63,9 @@ export default function HomePage() {
             {[
               {
                 step: "1",
-                title: "Solicita tu codigo",
+                title: "Registrate",
                 description:
-                  "Contacta al administrador y solicita un codigo de creacion. Es rapido y sin compromiso.",
+                  "Crea tu cuenta con un codigo de acceso. Es rapido y sin compromiso.",
                 color: "from-amber-400 to-orange-500",
                 shadow: "shadow-amber-200",
               },
@@ -93,7 +73,7 @@ export default function HomePage() {
                 step: "2",
                 title: "Crea tu rifa",
                 description:
-                  "Ingresa el codigo, sube la foto del premio, define precios y fechas. Listo en minutos.",
+                  "Sube la foto del premio, define precios y fechas. Listo en minutos.",
                 color: "from-orange-400 to-red-500",
                 shadow: "shadow-orange-200",
               },
@@ -183,10 +163,10 @@ export default function HomePage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
               {
-                title: "Sin registros",
+                title: "Cuenta segura",
                 description:
-                  "No necesitas crear cuenta. Solicita tu codigo y listo.",
-                emoji: "🔑",
+                  "Registrate una vez y accede a tu panel para gestionar todas tus rifas.",
+                emoji: "🔐",
               },
               {
                 title: "Mobile-first",
@@ -209,20 +189,14 @@ export default function HomePage() {
               {
                 title: "Panel simple",
                 description:
-                  "Administra tus rifas, reserva numeros y marca vendidos.",
+                  "Administra tus rifas, reserva numeros y marca vendidos desde tu dashboard.",
                 emoji: "⚙️",
               },
               {
-                title: "Aporte opcional",
+                title: "Multiples rifas",
                 description:
-                  "Puedes hacer un aporte voluntario para ayudar a mantener la plataforma.",
-                emoji: "☕",
-              },
-              {
-                title: "Actividades fiadas",
-                description:
-                  "Publica productos a credito con precio, fecha de pago y contacto directo.",
-                emoji: "🏷️",
+                  "Crea y administra todas las rifas que necesites desde una sola cuenta.",
+                emoji: "🎟️",
               },
             ].map((item) => (
               <div
@@ -246,29 +220,23 @@ export default function HomePage() {
       <section className="py-20 bg-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-4">
-            Empieza ahora
+            Registrate y empieza
           </h2>
           <p className="text-gray-500 text-lg mb-10">
-            Solicita tu codigo y crea tu primera rifa en minutos.
+            Crea tu cuenta y tu primera rifa en minutos.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
-              href="/create"
+              href="/signup"
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-8 py-4 rounded-2xl font-extrabold text-base hover:from-amber-600 hover:to-orange-600 transition-all active:scale-[0.98] shadow-xl shadow-amber-200"
             >
-              Crear una rifa
+              Crear mi cuenta
             </Link>
             <Link
-              href="/fiado/create"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-8 py-4 rounded-2xl font-extrabold text-base hover:from-green-600 hover:to-emerald-600 transition-all active:scale-[0.98] shadow-xl shadow-green-200"
-            >
-              Crear actividad fiada
-            </Link>
-            <Link
-              href="/admin"
+              href="/login"
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-gray-700 border border-gray-300 px-8 py-4 rounded-2xl font-extrabold text-base hover:bg-gray-50 transition-all active:scale-[0.98]"
             >
-              Solicitar codigo
+              Ya tengo cuenta
             </Link>
           </div>
         </div>

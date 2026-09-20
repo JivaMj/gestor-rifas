@@ -159,3 +159,49 @@ export type UpdateFiadoInput = z.infer<typeof updateFiadoSchema>;
 export const verifyFiadoCodeSchema = z.object({
   code: z.string().min(1, "El codigo es requerido"),
 });
+
+export const createPromotionSchema = z.object({
+  title: z
+    .string()
+    .min(1, "El nombre de la promocion es requerido")
+    .max(200, "Maximo 200 caracteres"),
+  description: z.string().max(2000, "Maximo 2000 caracteres").optional(),
+  availability: z.string().max(500, "Maximo 500 caracteres").optional(),
+  address: z.string().max(500, "Maximo 500 caracteres").optional(),
+  conditions: z.string().max(2000, "Maximo 2000 caracteres").optional(),
+  whatsapp: z
+    .string()
+    .regex(/^\+?[\d\s\-()]*$/, "Formato de WhatsApp invalido")
+    .optional()
+    .or(z.literal("")),
+  facebook: z.string().url("URL invalida").optional().or(z.literal("")),
+  instagram: z.string().url("URL invalida").optional().or(z.literal("")),
+  tiktok: z.string().url("URL invalida").optional().or(z.literal("")),
+  website: z.string().url("URL invalida").optional().or(z.literal("")),
+});
+
+export type CreatePromotionInput = z.infer<typeof createPromotionSchema>;
+
+export const updatePromotionSchema = z.object({
+  title: z
+    .string()
+    .min(1, "El nombre es requerido")
+    .max(200, "Maximo 200 caracteres")
+    .optional(),
+  description: z.string().max(2000, "Maximo 2000 caracteres").optional(),
+  availability: z.string().max(500).optional(),
+  address: z.string().max(500).optional(),
+  conditions: z.string().max(2000).optional(),
+  whatsapp: z.string().regex(/^\+?[\d\s\-()]*$/).optional().or(z.literal("")),
+  facebook: z.string().url().optional().or(z.literal("")),
+  instagram: z.string().url().optional().or(z.literal("")),
+  tiktok: z.string().url().optional().or(z.literal("")),
+  website: z.string().url().optional().or(z.literal("")),
+  status: z.enum(["active", "inactive"]).optional(),
+});
+
+export type UpdatePromotionInput = z.infer<typeof updatePromotionSchema>;
+
+export const verifyPromotionCodeSchema = z.object({
+  code: z.string().min(1, "El codigo es requerido"),
+});

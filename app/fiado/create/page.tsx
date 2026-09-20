@@ -20,7 +20,6 @@ export default function CreateFiadoPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [success, setSuccess] = useState<{
     fiado: { slug: string; id: string };
-    adminCode: string;
   } | null>(null);
 
   const [title, setTitle] = useState("");
@@ -30,8 +29,6 @@ export default function CreateFiadoPage() {
   const [paymentDate, setPaymentDate] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [discountInfo, setDiscountInfo] = useState("");
-
-  const adminWhatsApp = process.env.NEXT_PUBLIC_ADMIN_WHATSAPP || "5730012345678";
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -85,10 +82,9 @@ export default function CreateFiadoPage() {
 
     setLoading(false);
 
-    if (result.success && result.fiado && result.adminCode) {
+    if (result.success && result.fiado) {
       setSuccess({
         fiado: { slug: result.fiado.slug, id: result.fiado.id },
-        adminCode: result.adminCode,
       });
       if (result.warning) {
         toast("error", result.warning);
@@ -138,19 +134,6 @@ export default function CreateFiadoPage() {
                 {publicUrl}
               </a>
             </div>
-
-            <div className="bg-red-50 rounded-xl p-4">
-              <p className="text-xs text-red-700 font-bold mb-1 uppercase tracking-wide">
-                Codigo de administracion
-              </p>
-              <p className="text-red-900 font-mono text-lg font-bold tracking-wider">
-                {success.adminCode}
-              </p>
-              <p className="text-xs text-red-600 mt-2">
-                Guarda este codigo. Es el unico medio para administrar tu
-                publicacion. No se puede recuperar.
-              </p>
-            </div>
           </div>
 
           <div className="flex gap-3">
@@ -164,16 +147,9 @@ export default function CreateFiadoPage() {
                 Ver publicacion
               </Button>
             </a>
-            <a
-              href={`https://wa.me/${adminWhatsApp.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
-                `Hola, acabo de crear mi actividad fiada. URL: ${publicUrl}`
-              )}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1"
-            >
-              <Button variant="whatsapp" className="w-full">
-                Enviar por WhatsApp
+            <a href="/dashboard" className="flex-1">
+              <Button variant="secondary" className="w-full">
+                Ir al dashboard
               </Button>
             </a>
           </div>

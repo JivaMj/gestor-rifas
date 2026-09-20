@@ -5,7 +5,6 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
   getRaffleById,
-  verifyRaffleCode,
   updateRaffle,
   getRaffleStats,
 } from "@/actions/raffles";
@@ -24,15 +23,11 @@ export default function AdminRifaPage() {
   const { toast } = useToast();
   const raffleId = params.id as string;
 
-  const [codeVerified, setCodeVerified] = useState(false);
-  const [codeInput, setCodeInput] = useState("");
-  const [codeError, setCodeError] = useState("");
-  const [codeLoading, setCodeLoading] = useState(false);
-
   const [raffle, setRaffle] = useState<Raffle | null>(null);
   const [stats, setStats] = useState<RaffleStats | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [unauthorized, setUnauthorized] = useState(false);
 
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState<{
@@ -48,7 +43,6 @@ export default function AdminRifaPage() {
   const [editFileError, setEditFileError] = useState("");
 
   useEffect(() => {
-    if (!codeVerified) return;
     async function load() {
       setLoading(true);
       const result = await getRaffleById(raffleId);
@@ -61,26 +55,13 @@ export default function AdminRifaPage() {
           result.raffle.ticket_price
         );
         setStats(s);
+      } else {
+        setUnauthorized(true);
       }
       setLoading(false);
     }
     load();
-  }, [codeVerified, raffleId, refreshKey]);
-
-  async function handleVerifyCode(e: React.FormEvent) {
-    e.preventDefault();
-    setCodeLoading(true);
-    setCodeError("");
-
-    const result = await verifyRaffleCode(raffleId, codeInput);
-    setCodeLoading(false);
-
-    if (result.success) {
-      setCodeVerified(true);
-    } else {
-      setCodeError(result.error || "Codigo invalido");
-    }
-  }
+  }, [raffleId, refreshKey]);
 
   async function handleUpdateRaffle(e: React.FormEvent) {
     e.preventDefault();
@@ -106,70 +87,31 @@ export default function AdminRifaPage() {
     }
   }
 
-  if (!codeVerified) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-indigo-100 px-4">
-        <Card className="w-full max-w-sm shadow-xl border-0">
-          <CardContent className="py-8 px-8">
-            <div className="text-center mb-6">
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 mb-4 shadow-lg shadow-indigo-200">
-                <svg
-                  className="w-7 h-7 text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
-                  />
-                </svg>
-              </div>
-              <h1 className="text-lg font-extrabold text-gray-900">
-                Acceso administrativo
-              </h1>
-              <p className="text-sm text-gray-500 mt-1">
-                Ingresa el codigo de administracion de esta rifa
-              </p>
-            </div>
-            <form onSubmit={handleVerifyCode} className="space-y-4">
-              <Input
-                type="password"
-                value={codeInput}
-                onChange={(e) => setCodeInput(e.target.value)}
-                placeholder="RIFA-XXXXXX"
-                autoFocus
-                error={codeError}
-              />
-              <Button
-                type="submit"
-                loading={codeLoading}
-                className="w-full"
-                size="lg"
-              >
-                Acceder
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full"
-                onClick={() => router.push("/admin/rifas")}
-              >
-                Volver
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-500">Cargando rifa...</p>
+        </div>
       </div>
     );
   }
 
-  if (loading || !raffle || !stats) {
+  if (unauthorized || !raffle || !stats) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-gray-500">Cargando...</p>
+        <div className="text-center">
+          <h1 className="text-xl font-extrabold text-gray-900 mb-2">
+            No autorizado
+          </h1>
+          <p className="text-gray-500 text-sm mb-4">
+            No tienes acceso a esta rifa.
+          </p>
+          <Link href="/admin/rifas">
+            <Button>Volver al panel</Button>
+          </Link>
+        </div>
       </div>
     );
   }
@@ -181,7 +123,7 @@ export default function AdminRifaPage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center gap-4 mb-2">
             <Link
-              href="/"
+              href="/admin/rifas"
               className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
             >
               <svg
@@ -197,13 +139,6 @@ export default function AdminRifaPage() {
                   d="M15.75 19.5L8.25 12l7.5-7.5"
                 />
               </svg>
-              Inicio
-            </Link>
-            <span className="text-gray-300">/</span>
-            <Link
-              href="/admin/rifas"
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
               Admin
             </Link>
           </div>

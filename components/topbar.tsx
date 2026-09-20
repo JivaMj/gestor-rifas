@@ -5,21 +5,34 @@ import { usePathname } from "next/navigation";
 
 interface TopBarProps {
   isAdmin: boolean;
+  isLoggedIn: boolean;
 }
 
-export function TopBar({ isAdmin }: TopBarProps) {
+export function TopBar({ isAdmin, isLoggedIn }: TopBarProps) {
   const pathname = usePathname();
 
-  if (pathname.startsWith("/admin") || pathname.match(/^\/manage\/[^/]+/)) {
+  if (
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/signup") ||
+    pathname.startsWith("/dashboard") ||
+    pathname.match(/^\/manage\/[^/]+/) ||
+    pathname.match(/^\/promo-manage\/[^/]+/) ||
+    pathname.startsWith("/fiado/")
+  ) {
     return null;
   }
 
   const links = [
     { href: "/", label: "Inicio" },
     { href: "/rifas", label: "Rifas" },
-    { href: "/create", label: "Crear" },
-    { href: "/manage", label: "Gestionar" },
+    { href: "/fiados", label: "Actividades" },
+    { href: "/promos", label: "Promociones" },
   ];
+
+  if (isLoggedIn) {
+    links.push({ href: "/dashboard", label: "Mi panel" });
+  }
 
   if (isAdmin) {
     links.push({ href: "/admin/rifas", label: "Admin" });
@@ -69,6 +82,14 @@ export function TopBar({ isAdmin }: TopBarProps) {
               </Link>
             );
           })}
+          {!isLoggedIn && (
+            <Link
+              href="/login"
+              className="px-3 py-1.5 rounded-xl text-sm font-semibold bg-amber-500 text-white hover:bg-amber-600 transition-colors"
+            >
+              Iniciar sesion
+            </Link>
+          )}
         </nav>
       </div>
     </header>

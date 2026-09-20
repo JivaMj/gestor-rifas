@@ -4,20 +4,20 @@ import { revalidatePath } from "next/cache";
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { generateSlug } from "@/lib/crypto";
 import {
-  createFiadoSchema,
-  updateFiadoSchema,
-  type CreateFiadoInput,
-  type UpdateFiadoInput,
+  createPromotionSchema,
+  updatePromotionSchema,
+  type CreatePromotionInput,
+  type UpdatePromotionInput,
 } from "@/schemas/raffle";
-import type { Fiado } from "@/types";
+import type { Promotion } from "@/types";
 import { getCurrentUser } from "@/lib/auth";
 
-export async function createFiado(
-  input: CreateFiadoInput,
+export async function createPromotion(
+  input: CreatePromotionInput,
   imageFile?: File
 ): Promise<{
   success: boolean;
-  fiado?: Fiado;
+  promotion?: Promotion;
   error?: string;
   warning?: string;
 }> {
@@ -26,7 +26,7 @@ export async function createFiado(
     return { success: false, error: "No autorizado" };
   }
 
-  const parsed = createFiadoSchema.safeParse(input);
+  const parsed = createPromotionSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message };
   }
@@ -36,17 +36,20 @@ export async function createFiado(
 
   const supabase = getSupabaseAdminClient();
 
-  const { data: fiado, error: insertError } = await supabase
-    .from("fiados")
+  const { data: promo, error: insertError } = await supabase
+    .from("promotions")
     .insert({
       slug,
       title: data.title,
       description: data.description || null,
-      price: data.price,
-      payment_type: data.payment_type,
-      payment_date: data.payment_date || null,
-      whatsapp: data.whatsapp,
-      discount_info: data.discount_info || null,
+      availability: data.availability || null,
+      address: data.address || null,
+      conditions: data.conditions || null,
+      whatsapp: data.whatsapp || null,
+      facebook: data.facebook || null,
+      instagram: data.instagram || null,
+      tiktok: data.tiktok || null,
+      website: data.website || null,
       owner_id: user.sub,
       status: "active",
     })
@@ -56,7 +59,7 @@ export async function createFiado(
   if (insertError) {
     return {
       success: false,
-      error: `No fue posible crear la publicacion: ${insertError.message}`,
+      error: `No fue posible crear la promocion: ${insertError.message}`,
     };
   }
 
@@ -64,7 +67,7 @@ export async function createFiado(
 
   if (imageFile && imageFile.size > 0) {
     const ext = imageFile.name.split(".").pop() || "jpg";
-    const filePath = `${fiado.id}/image.${ext}`;
+    const filePath = `${promo.id}/image.${ext}`;
 
     const { error: uploadError } = await supabase.storage
       .from("raffle-images")
@@ -75,62 +78,62 @@ export async function createFiado(
 
     if (uploadError) {
       warning =
-        "La publicacion se creo correctamente, pero no se pudo subir la imagen. Puedes subirla despues desde administrar.";
+        "La promocion se creo correctamente, pero no se pudo subir la imagen. Puedes subirla despues desde administrar.";
     } else {
       const { data: urlData } = supabase.storage
         .from("raffle-images")
         .getPublicUrl(filePath);
 
       await supabase
-        .from("fiados")
+        .from("promotions")
         .update({ image_url: urlData.publicUrl })
-        .eq("id", fiado.id);
+        .eq("id", promo.id);
 
-      fiado.image_url = urlData.publicUrl;
+      promo.image_url = urlData.publicUrl;
     }
   }
 
   revalidatePath("/");
 
-  return { success: true, fiado: fiado as Fiado, warning };
+  return { success: true, promotion: promo as Promotion, warning };
 }
 
-export async function getFiadoBySlug(
+export async function getPromotionBySlug(
   slug: string
-): Promise<Fiado | null> {
+): Promise<Promotion | null> {
   const supabase = getSupabaseAdminClient();
 
-  const { data: fiado, error } = await supabase
-    .from("fiados")
+  const { data: promo, error } = await supabase
+    .from("promotions")
     .select("*")
     .eq("slug", slug)
     .single();
 
-  if (error || !fiado) return null;
-  return fiado as Fiado;
+  if (error || !promo) return null;
+  return promo as Promotion;
 }
 
-export async function getFiadoById(
+export async function getPromotionById(
   id: string
-): Promise<Fiado | null> {
+): Promise<Promotion | null> {
   const supabase = getSupabaseAdminClient();
 
-  const { data: fiado, error } = await supabase
-    .from("fiados")
+  const { data: promo, error } = await supabase
+    .from("promotions")
     .select("*")
     .eq("id", id)
     .single();
 
-  if (error || !fiado) return null;
-  return fiado as Fiado;
+  if (error || !promo) return null;
+  return promo as Promotion;
 }
 
-export async function updateFiado(
+export async function updatePromotion(
   id: string,
-  input: UpdateFiadoInput,
+  input: UpdatePromotionInput,
   imageFile?: File
 ): Promise<{ success: boolean; error?: string; warning?: string }> {
-  const parsed = updateFiadoSchema.safeParse(input);
+  const parsed = updatePromotionSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message };
   }
@@ -142,14 +145,14 @@ export async function updateFiado(
   let warning: string | undefined;
 
   if (imageFile && imageFile.size > 0) {
-    const { data: oldFiado } = await supabase
-      .from("fiados")
+    const { data: oldPromo } = await supabase
+      .from("promotions")
       .select("image_url")
       .eq("id", id)
       .single();
 
-    if (oldFiado?.image_url) {
-      const oldPath = oldFiado.image_url.split("/object/public/raffle-images/")[1];
+    if (oldPromo?.image_url) {
+      const oldPath = oldPromo.image_url.split("/object/public/raffle-images/")[1];
       if (oldPath) {
         await supabase.storage.from("raffle-images").remove([oldPath]);
       }
@@ -177,7 +180,7 @@ export async function updateFiado(
   }
 
   const { error } = await supabase
-    .from("fiados")
+    .from("promotions")
     .update(updateData)
     .eq("id", id);
 
@@ -189,32 +192,32 @@ export async function updateFiado(
   }
 
   revalidatePath("/");
-  if (updateData.slug) revalidatePath(`/f/${updateData.slug}`);
+  if (updateData.slug) revalidatePath(`/promo/${updateData.slug}`);
 
   return { success: true, warning };
 }
 
-export async function getActiveFiados(): Promise<Fiado[]> {
+export async function getAllPromotions(): Promise<Promotion[]> {
   const supabase = getSupabaseAdminClient();
 
   const { data, error } = await supabase
-    .from("fiados")
+    .from("promotions")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) return [];
+  return (data || []) as Promotion[];
+}
+
+export async function getActivePromotions(): Promise<Promotion[]> {
+  const supabase = getSupabaseAdminClient();
+
+  const { data, error } = await supabase
+    .from("promotions")
     .select("*")
     .eq("status", "active")
     .order("created_at", { ascending: false });
 
   if (error) return [];
-  return (data || []) as Fiado[];
-}
-
-export async function getAllFiados(): Promise<Fiado[]> {
-  const supabase = getSupabaseAdminClient();
-
-  const { data, error } = await supabase
-    .from("fiados")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error) return [];
-  return (data || []) as Fiado[];
+  return (data || []) as Promotion[];
 }

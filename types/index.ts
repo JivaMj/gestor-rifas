@@ -3,6 +3,18 @@ export type WinnerMethod = "random" | "manual";
 export type TicketStatus = "reserved" | "sold";
 export type PaymentType = "immediate" | "scheduled";
 export type FiadoStatus = "active" | "inactive";
+export type PromotionStatus = "active" | "inactive";
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  business_type: string | null;
+  location: string | null;
+  is_admin: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface Raffle {
   id: string;
@@ -19,7 +31,7 @@ export interface Raffle {
   winner_method: WinnerMethod;
   winner_number: number | null;
   winner_source: string | null;
-  admin_code_hash: string;
+  owner_id: string | null;
   status: RaffleStatus;
   created_at: string;
   updated_at: string;
@@ -68,8 +80,28 @@ export interface Fiado {
   payment_date: string | null;
   whatsapp: string;
   discount_info: string | null;
-  admin_code_hash: string;
+  owner_id: string | null;
   status: FiadoStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Promotion {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  image_url: string | null;
+  availability: string | null;
+  address: string | null;
+  conditions: string | null;
+  whatsapp: string | null;
+  facebook: string | null;
+  instagram: string | null;
+  tiktok: string | null;
+  website: string | null;
+  owner_id: string | null;
+  status: PromotionStatus;
   created_at: string;
   updated_at: string;
 }

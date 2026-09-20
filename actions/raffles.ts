@@ -2,24 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { getSupabaseAdminClient } from "@/lib/supabase";
-import {
-  generateRaffleCode,
-  generateSlug,
-  hashAdminCode,
-  compareAdminCode,
-} from "@/lib/crypto";
+import { generateSlug } from "@/lib/crypto";
 import {
   createRaffleSchema,
   updateRaffleSchema,
-  verifyRaffleCodeSchema,
   type CreateRaffleInput,
   type UpdateRaffleInput,
 } from "@/schemas/raffle";
 import type { Raffle, RaffleStats, Ticket } from "@/types";
-import { isMasterAuthenticated } from "./auth";
-
-const RAFFLE_PUBLIC_COLUMNS =
-  "id, slug, title, description, prize_image_url, raffle_date, terms, number_from, number_to, ticket_price, whatsapp, winner_method, winner_number, winner_source, status, created_at, updated_at";
+import { getCurrentUser } from "@/lib/auth";
 
 export async function createRaffle(
   input: CreateRaffleInput,
@@ -27,12 +18,11 @@ export async function createRaffle(
 ): Promise<{
   success: boolean;
   raffle?: Raffle;
-  adminCode?: string;
   error?: string;
   warning?: string;
 }> {
-  const auth = await isMasterAuthenticated();
-  if (!auth) {
+  const user = await getCurrentUser();
+  if (!user) {
     return { success: false, error: "No autenticado" };
   }
 
@@ -43,8 +33,6 @@ export async function createRaffle(
 
   const data = parsed.data;
   const slug = generateSlug(data.title);
-  const adminCode = generateRaffleCode();
-  const adminCodeHash = await hashAdminCode(adminCode);
 
   const supabase = getSupabaseAdminClient();
 
@@ -61,7 +49,7 @@ export async function createRaffle(
       ticket_price: data.ticket_price,
       whatsapp: data.whatsapp,
       winner_method: data.winner_method,
-      admin_code_hash: adminCodeHash,
+      owner_id: user.sub,
       status: "active",
     })
     .select()
@@ -106,12 +94,12 @@ export async function createRaffle(
 
   revalidatePath("/admin/rifas");
 
-  return { success: true, raffle: raffle as Raffle, adminCode, warning };
+  return { success: true, raffle: raffle as Raffle, warning };
 }
 
 export async function getRaffles(): Promise<Raffle[]> {
-  const auth = await isMasterAuthenticated();
-  if (!auth) return [];
+  const user = await getCurrentUser();
+  if (!user) return [];
 
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
@@ -130,7 +118,7 @@ export async function getRaffleBySlug(
 
   const { data: raffle, error } = await supabase
     .from("raffles")
-    .select(RAFFLE_PUBLIC_COLUMNS)
+    .select("*")
     .eq("slug", slug)
     .single();
 
@@ -201,41 +189,13 @@ export async function getRaffleByIdForManage(
   };
 }
 
-export async function verifyRaffleCode(
-  raffleId: string,
-  code: string
-): Promise<{ success: boolean; error?: string }> {
-  const parsed = verifyRaffleCodeSchema.safeParse({ code });
-  if (!parsed.success) {
-    return { success: false, error: "Código requerido" };
-  }
-
-  const supabase = getSupabaseAdminClient();
-  const { data: raffle, error } = await supabase
-    .from("raffles")
-    .select("admin_code_hash")
-    .eq("id", raffleId)
-    .single();
-
-  if (error || !raffle) {
-    return { success: false, error: "Rifa no encontrada" };
-  }
-
-  const valid = await compareAdminCode(code, raffle.admin_code_hash);
-  if (!valid) {
-    return { success: false, error: "Código de administración inválido" };
-  }
-
-  return { success: true };
-}
-
 export async function updateRaffle(
   id: string,
   input: UpdateRaffleInput,
   imageFile?: File
 ): Promise<{ success: boolean; error?: string; warning?: string }> {
-  const auth = await isMasterAuthenticated();
-  if (!auth) {
+  const user = await getCurrentUser();
+  if (!user) {
     return { success: false, error: "No autenticado" };
   }
 
@@ -322,8 +282,8 @@ export async function getRaffleStats(
 export async function finishRaffle(
   raffleId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const auth = await isMasterAuthenticated();
-  if (!auth) {
+  const user = await getCurrentUser();
+  if (!user) {
     return { success: false, error: "No autenticado" };
   }
 
@@ -344,40 +304,12 @@ export async function finishRaffle(
   return { success: true };
 }
 
-export async function regenerateAdminCode(
-  raffleId: string
-): Promise<{ success: boolean; code?: string; error?: string }> {
-  const auth = await isMasterAuthenticated();
-  if (!auth) {
-    return { success: false, error: "No autenticado" };
-  }
-
-  const supabase = getSupabaseAdminClient();
-  const newCode = generateRaffleCode();
-  const newHash = await hashAdminCode(newCode);
-
-  const { error } = await supabase
-    .from("raffles")
-    .update({ admin_code_hash: newHash })
-    .eq("id", raffleId);
-
-  if (error) {
-    return { success: false, error: "No fue posible regenerar el codigo" };
-  }
-
-  revalidatePath("/admin/rifas");
-  revalidatePath(`/admin/rifa/${raffleId}`);
-
-  return { success: true, code: newCode };
-}
-
 export async function updateRaffleImage(
   raffleId: string,
-  imageFile: File,
-  adminCode: string
+  imageFile: File
 ): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
-  const auth = await verifyRaffleCode(raffleId, adminCode);
-  if (!auth.success) {
+  const user = await getCurrentUser();
+  if (!user) {
     return { success: false, error: "No autorizado" };
   }
 

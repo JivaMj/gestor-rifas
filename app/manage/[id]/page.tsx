@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
   getRaffleByIdForManage,
-  verifyRaffleCode,
   finishRaffle,
   updateRaffleImage,
 } from "@/actions/raffles";
@@ -15,6 +14,7 @@ import {
   selectRandomWinner,
   selectManualWinner,
 } from "@/actions/tickets";
+import { getAuthUser } from "@/actions/auth";
 import type { TicketFormData } from "@/components/ticket-modal";
 import { TicketModal } from "@/components/ticket-modal";
 import { useToast } from "@/components/ui/toast";
@@ -49,23 +49,15 @@ function computeStats(
 
 export default function ManageRafflePage() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();
   const raffleId = params.id as string;
-
-  const [codeVerified, setCodeVerified] = useState(false);
-  const [verifiedCode, setVerifiedCode] = useState("");
-  const [codeInput, setCodeInput] = useState("");
-  const [codeError, setCodeError] = useState("");
-  const [codeLoading, setCodeLoading] = useState(false);
-  const [codeAttempts, setCodeAttempts] = useState(0);
-  const maxCodeAttempts = 3;
 
   const [raffle, setRaffle] = useState<Raffle | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [tab, setTab] = useState<Tab>("tickets");
   const [loading, setLoading] = useState(true);
+  const [unauthorized, setUnauthorized] = useState(false);
 
   const [ticketSearch, setTicketSearch] = useState("");
 
@@ -80,24 +72,35 @@ export default function ManageRafflePage() {
   const [modalLoading, setModalLoading] = useState(false);
 
   useEffect(() => {
-    const urlCode = searchParams.get("code");
-    if (urlCode && !codeVerified && !codeLoading && codeAttempts < maxCodeAttempts) {
-      (async () => {
-        setCodeLoading(true);
-        setCodeError("");
-        const result = await verifyRaffleCode(raffleId, urlCode);
-        setCodeLoading(false);
-        if (result.success) {
-          setVerifiedCode(urlCode);
-          setCodeVerified(true);
-          router.replace(`/manage/${raffleId}`);
-        } else {
-          setCodeAttempts((prev) => prev + 1);
-          setCodeError(result.error || "Codigo invalido");
-        }
-      })();
-    }
-  }, [searchParams, codeVerified, codeLoading, codeAttempts, raffleId, router]);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const user = await getAuthUser();
+      if (cancelled) return;
+      if (!user) {
+        setUnauthorized(true);
+        setLoading(false);
+        return;
+      }
+      const result = await getRaffleByIdForManage(raffleId);
+      if (cancelled) return;
+      if (result.raffle && result.raffle.owner_id !== user.id) {
+        setUnauthorized(true);
+        setLoading(false);
+        return;
+      }
+      if (result.raffle) {
+        setRaffle(result.raffle);
+        setTickets(result.tickets);
+      } else {
+        setUnauthorized(true);
+      }
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [raffleId]);
 
   const stats = useMemo(
     () =>
@@ -106,51 +109,6 @@ export default function ManageRafflePage() {
         : null,
     [tickets, raffle]
   );
-
-  useEffect(() => {
-    if (!codeVerified) return;
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const result = await getRaffleByIdForManage(raffleId);
-      if (!cancelled) {
-        if (result.raffle) {
-          setRaffle(result.raffle);
-          setTickets(result.tickets);
-        }
-        setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [codeVerified, raffleId]);
-
-  async function handleVerifyCode(e: React.FormEvent) {
-    e.preventDefault();
-    if (codeAttempts >= maxCodeAttempts) {
-      setCodeError("Demasiados intentos. Recarga la pagina para intentar de nuevo.");
-      return;
-    }
-    setCodeLoading(true);
-    setCodeError("");
-
-    const result = await verifyRaffleCode(raffleId, codeInput);
-    setCodeLoading(false);
-
-    if (result.success) {
-      setVerifiedCode(codeInput);
-      setCodeVerified(true);
-    } else {
-      const remaining = maxCodeAttempts - codeAttempts - 1;
-      setCodeAttempts((prev) => prev + 1);
-      if (remaining <= 0) {
-        setCodeError("Demasiados intentos fallidos. Recarga la pagina para intentar de nuevo.");
-      } else {
-        setCodeError(`${result.error || "Codigo invalido"} (${remaining} intento${remaining !== 1 ? "s" : ""} restante${remaining !== 1 ? "s" : ""})`);
-      }
-    }
-  }
 
   function openModal(num: number) {
     setModalNumber(num);
@@ -198,7 +156,7 @@ export default function ManageRafflePage() {
       fully_paid: data.fully_paid,
       delivery_address: data.delivery_address,
       notes: data.notes,
-    }, verifiedCode);
+    });
     setModalLoading(false);
 
     if (result.success) {
@@ -218,7 +176,7 @@ export default function ManageRafflePage() {
     setTickets((prev) => prev.filter((t) => t.number !== num));
 
     setModalLoading(true);
-    const result = await releaseTicket(raffleId, num, verifiedCode);
+    const result = await releaseTicket(raffleId, num);
     setModalLoading(false);
 
     if (result.success) {
@@ -235,7 +193,7 @@ export default function ManageRafflePage() {
     setWinnerError("");
     setWinnerSuccess("");
 
-    const result = await selectRandomWinner(raffleId, verifiedCode);
+    const result = await selectRandomWinner(raffleId);
     setWinnerLoading(false);
 
     if (result.success && result.winnerNumber !== undefined) {
@@ -265,8 +223,7 @@ export default function ManageRafflePage() {
     const result = await selectManualWinner(
       raffleId,
       Number(manualNumber),
-      manualSource,
-      verifiedCode
+      manualSource
     );
     setWinnerLoading(false);
 
@@ -300,73 +257,38 @@ export default function ManageRafflePage() {
     }
   }
 
-  if (!codeVerified) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100 px-4">
-        <Card className="w-full max-w-sm shadow-xl border-0">
-          <CardContent className="py-8 px-8">
-            <div className="text-center mb-6">
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 mb-4 shadow-lg shadow-orange-200">
-                <svg
-                  className="w-7 h-7 text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
-                  />
-                </svg>
-              </div>
-              <h1 className="text-lg font-extrabold text-gray-900">
-                Acceso a tu rifa
-              </h1>
-              <p className="text-sm text-gray-500 mt-1">
-                Ingresa el codigo de administracion
-              </p>
-            </div>
-            <form onSubmit={handleVerifyCode} className="space-y-4">
-              <Input
-                type="password"
-                value={codeInput}
-                onChange={(e) => setCodeInput(e.target.value)}
-                placeholder="RIFA-XXXXXX"
-                autoFocus
-                error={codeError}
-                disabled={codeAttempts >= maxCodeAttempts}
-              />
-              <Button
-                type="submit"
-                loading={codeLoading}
-                className="w-full"
-                size="lg"
-                variant="orange"
-                disabled={codeAttempts >= maxCodeAttempts}
-              >
-                Acceder
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full"
-                onClick={() => router.push("/")}
-              >
-                Volver al inicio
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-4 border-gray-300 border-t-orange-500 rounded-full animate-spin" />
+          <p className="text-gray-500">Cargando...</p>
+        </div>
       </div>
     );
   }
 
-  if (loading || !raffle || !stats) {
+  if (unauthorized || !raffle || !stats) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-gray-500">Cargando...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <Card className="w-full max-w-sm text-center shadow-xl border-0">
+          <CardContent className="py-10 px-8">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-red-100 mb-4">
+              <svg className="w-7 h-7 text-red-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+              </svg>
+            </div>
+            <h1 className="text-lg font-extrabold text-gray-900 mb-2">
+              No autorizado
+            </h1>
+            <p className="text-sm text-gray-500 mb-6">
+              No tienes acceso a esta rifa o no existe.
+            </p>
+            <Button variant="ghost" className="w-full" onClick={() => router.push("/dashboard")}>
+              Ir al dashboard
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -390,7 +312,7 @@ export default function ManageRafflePage() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
           <Link
-            href="/"
+            href="/dashboard"
             className="text-sm text-gray-500 hover:text-gray-700 mb-1 flex items-center gap-1"
           >
             <svg
@@ -406,7 +328,7 @@ export default function ManageRafflePage() {
                 d="M15.75 19.5L8.25 12l7.5-7.5"
               />
             </svg>
-            Inicio
+            Dashboard
           </Link>
           <div className="flex items-center justify-between">
             <div>
@@ -445,7 +367,7 @@ export default function ManageRafflePage() {
                       return;
                     }
                     toast("info", "Subiendo imagen...");
-                    const result = await updateRaffleImage(raffleId, file, verifiedCode);
+                    const result = await updateRaffleImage(raffleId, file);
                     if (result.success && result.imageUrl) {
                       setRaffle((prev) => prev ? { ...prev, prize_image_url: result.imageUrl! } : prev);
                       toast("success", "Imagen actualizada");

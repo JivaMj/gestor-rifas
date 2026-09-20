@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { TopBar } from "@/components/topbar";
-import { isMasterAuthenticated } from "@/actions/auth";
+import { getCurrentUser } from "@/lib/auth";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -25,7 +25,9 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const isAdmin = await isMasterAuthenticated();
+  const user = await getCurrentUser();
+  const isAdmin = user?.is_admin ?? false;
+  const isLoggedIn = !!user;
 
   return (
     <html
@@ -34,7 +36,7 @@ export default async function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <Providers>
-          <TopBar isAdmin={isAdmin} />
+          <TopBar isAdmin={isAdmin} isLoggedIn={isLoggedIn} />
           <main className="flex-1">{children}</main>
         </Providers>
       </body>
