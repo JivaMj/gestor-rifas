@@ -57,6 +57,12 @@ export default function HomePage() {
             >
               Ver rifas activas
             </Link>
+            <Link
+              href="/fiado/create"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white/15 backdrop-blur-sm border border-white/25 text-white px-8 py-4 rounded-2xl font-extrabold text-base hover:bg-white/25 transition-all active:scale-[0.98]"
+            >
+              Crear actividad fiada
+            </Link>
           </div>
         </div>
       </section>
@@ -212,6 +218,12 @@ export default function HomePage() {
                   "Puedes hacer un aporte voluntario para ayudar a mantener la plataforma.",
                 emoji: "☕",
               },
+              {
+                title: "Actividades fiadas",
+                description:
+                  "Publica productos a credito con precio, fecha de pago y contacto directo.",
+                emoji: "🏷️",
+              },
             ].map((item) => (
               <div
                 key={item.title}
@@ -245,6 +257,12 @@ export default function HomePage() {
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-8 py-4 rounded-2xl font-extrabold text-base hover:from-amber-600 hover:to-orange-600 transition-all active:scale-[0.98] shadow-xl shadow-amber-200"
             >
               Crear una rifa
+            </Link>
+            <Link
+              href="/fiado/create"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-8 py-4 rounded-2xl font-extrabold text-base hover:from-green-600 hover:to-emerald-600 transition-all active:scale-[0.98] shadow-xl shadow-green-200"
+            >
+              Crear actividad fiada
             </Link>
             <Link
               href="/admin"

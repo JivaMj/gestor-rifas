@@ -1,6 +1,8 @@
 export type RaffleStatus = "active" | "finished" | "cancelled";
 export type WinnerMethod = "random" | "manual";
 export type TicketStatus = "reserved" | "sold";
+export type PaymentType = "immediate" | "scheduled";
+export type FiadoStatus = "active" | "inactive";
 
 export interface Raffle {
   id: string;
@@ -53,4 +55,21 @@ export interface CreationCode {
   used_by_raffle_id: string | null;
   created_at: string;
   used_at: string | null;
+}
+
+export interface Fiado {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  image_url: string | null;
+  price: number;
+  payment_type: PaymentType;
+  payment_date: string | null;
+  whatsapp: string;
+  discount_info: string | null;
+  admin_code_hash: string;
+  status: FiadoStatus;
+  created_at: string;
+  updated_at: string;
 }

@@ -29,7 +29,8 @@ const MONTHS_SHORT_ES = [
 ];
 
 /**
- * Parse a "YYYY-MM-DD" string as a LOCAL date (no UTC conversion).
+ * Parse a date string as a LOCAL date (no UTC conversion).
+ * Handles both "YYYY-MM-DD" and full ISO timestamps from TIMESTAMPTZ.
  * new Date("2026-10-10") in JS creates UTC midnight, which shifts -5h to Oct 9.
  * This function avoids that by extracting the parts manually.
  */
@@ -38,7 +39,8 @@ export function parseLocalDate(dateString: string): {
   month: number;
   day: number;
 } {
-  const [year, month, day] = dateString.split("-").map(Number);
+  const datePart = dateString.split("T")[0];
+  const [year, month, day] = datePart.split("-").map(Number);
   return { year, month, day };
 }
 

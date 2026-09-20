@@ -100,3 +100,62 @@ export const selectWinnerSchema = z.object({
   winner_number: z.number().int().min(0),
   winner_source: z.string().optional(),
 });
+
+export const createFiadoSchema = z
+  .object({
+    title: z
+      .string()
+      .min(1, "El nombre del producto/servicio es requerido")
+      .max(200, "Maximo 200 caracteres"),
+    description: z.string().max(2000, "Maximo 2000 caracteres").optional(),
+    price: z
+      .number({ message: "Debe ser un numero" })
+      .min(0.01, "El precio debe ser mayor a 0"),
+    payment_type: z.enum(["immediate", "scheduled"], {
+      message: "Tipo de pago invalido",
+    }),
+    payment_date: z.string().optional(),
+    whatsapp: z
+      .string()
+      .min(1, "El numero de WhatsApp es requerido")
+      .regex(/^\+?[\d\s\-()]+$/, "Formato de WhatsApp invalido"),
+    discount_info: z.string().max(500, "Maximo 500 caracteres").optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.payment_type === "scheduled" && !data.payment_date) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: "La fecha de pago es requerida cuando el pago no es inmediato",
+      path: ["payment_date"],
+    }
+  );
+
+export type CreateFiadoInput = z.infer<typeof createFiadoSchema>;
+
+export const updateFiadoSchema = z.object({
+  title: z
+    .string()
+    .min(1, "El nombre es requerido")
+    .max(200, "Maximo 200 caracteres")
+    .optional(),
+  description: z.string().max(2000, "Maximo 2000 caracteres").optional(),
+  price: z.number().min(0.01).optional(),
+  payment_type: z.enum(["immediate", "scheduled"]).optional(),
+  payment_date: z.string().optional(),
+  whatsapp: z
+    .string()
+    .regex(/^\+?[\d\s\-()]+$/)
+    .optional(),
+  discount_info: z.string().max(500).optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+});
+
+export type UpdateFiadoInput = z.infer<typeof updateFiadoSchema>;
+
+export const verifyFiadoCodeSchema = z.object({
+  code: z.string().min(1, "El codigo es requerido"),
+});
